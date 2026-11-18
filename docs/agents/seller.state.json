@@ -1,0 +1,11 @@
+{
+  "name": "seller",
+  "txs": [
+    {
+      "label": "register",
+      "hash": "2b2b2c9c647f68706441b41cb0404aea2e293ec317a8256bbf4b74df631ee29a"
+    }
+  ],
+  "tokenId": 1254,
+  "owner": "4BqjC6XzDDqmsgBVqmo5zZKmCfFQvhuH5Fy4XPYDNftkcDQyPD"
+}
