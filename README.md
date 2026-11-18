@@ -37,10 +37,12 @@ Default policy (`src/assess.mjs`): 5 CCD per payment, 20 CCD per counterparty pe
 
 ## Use
 
-Requires Node 20+. No dependencies; it talks to the public read-only registry MCP server (`https://agent-registry-mcp.concordium.com/mcp`).
+Requires Node 20+. The checks talk to the public read-only registry MCP server (`https://agent-registry-mcp.concordium.com/mcp`).
 
 ```bash
-npm test                                   # 9 unit tests
+npm install
+npm test                                   # 19 unit tests (guard, ledger, x402 hook)
+npm run demo                               # guarded x402 buyer vs three local sellers
 node src/guard.mjs check 1251 --amount 5   # assess one agent (add --pay-to <addr>)
 node src/guard.mjs scan --out docs/data/scan.json   # rescan the whole registry
 ```
@@ -75,12 +77,53 @@ if (verdict !== 'ALLOW') {
 - `src/mcp.mjs`: minimal read-only MCP client for the Concordium Agent Registry
 - `src/assess.mjs`: verdict engine, spend ledger and scan summary
 - `src/guard.mjs`: CLI (`check`, `scan`)
+- `src/payguard.mjs`: maps x402 payment requirements to the payee agent and decides
+- `src/x402guard.mjs`: hook into the x402 client and a guarded `fetch`
+- `examples/demo.mjs`: end-to-end demo
 - `docs/`: static dashboard (GitHub Pages)
+
+## x402: pay only verified agents
+
+`src/x402guard.mjs` plugs the guard into the official x402 client (`@x402/fetch` + `@x402/concordium`). It runs in the client's `onBeforePaymentCreation` hook, so a `BLOCK` or `REVIEW` verdict aborts the payment **before the Concordium scheme signs anything**. Signed payments are recorded in a daily ledger, so per-counterparty and global caps hold across calls. x402's own spend controls are set to the same per-payment cap.
+
+```js
+import { ExactConcordiumScheme } from '@x402/concordium/exact/client';
+import { AccountAddress, buildBasicAccountSigner } from '@concordium/web-sdk';
+import { createRegistryClient } from './src/mcp.mjs';
+import { createPayGuard } from './src/payguard.mjs';
+import { createGuardedFetch } from './src/x402guard.mjs';
+
+const scheme = new ExactConcordiumScheme({ accountAddress: AccountAddress.fromBase58(ACCOUNT), signer: buildBasicAccountSigner(KEY) });
+const guard = createPayGuard({ registry: createRegistryClient({ network: 'testnet' }) });
+const { fetch: payFetch } = createGuardedFetch({ scheme, guard });
+
+await payFetch('https://seller.example/report'); // throws "...aborted: Counterparty Guard BLOCK (wallet_mismatch)" for a bad payee
+```
+
+The payee's agent id comes from `requirements.extra.agentId` (sellers advertise their CIS-8004 token id) or from `agentIdFor(requirements)` when the buyer already chose the agent in the registry.
+
+### Demo
+
+`npm run demo` starts three local sellers that answer HTTP 402 and pays them through the guarded client, with counterparty facts read live from the testnet registry:
+
+```
+/verified: agent #1251, pays its declared wallet
+  guard: ALLOW · agent #1251 · 2 CCD
+  -> HTTP 200
+/hijacked: claims agent #1251, payTo swapped to an attacker
+  guard: BLOCK (wallet_mismatch) · agent #1251 · 2 CCD
+  -> refused before signing
+/unbadged: agent #5, Active but no Badge
+  guard: BLOCK (card_unreachable, no_badge) · agent #5 · 2 CCD
+  -> refused before signing
+```
+
+Without credentials it is a dry run (nothing is signed). With `CCD_ACCOUNT=<address> CCD_KEY_FILE=<file with the ed25519 key>` it uses the real `ExactConcordiumScheme` signer. The local sellers do not settle on chain.
 
 ## Roadmap
 
-1. Wrap an x402 client (`@x402/concordium`) so payments only go out after `ALLOW`.
-2. Register our own buyer and seller agents on CIS-8004 with a Badge and show an end-to-end verified payment on testnet.
+1. Register our own buyer and seller agents on CIS-8004 with a Badge, and settle a guarded payment on testnet through a Concordium facilitator.
+2. Optional REVIEW flow: ask a human before paying a new or recently transferred agent instead of refusing.
 
 ## License
 
