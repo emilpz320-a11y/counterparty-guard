@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Counterparty Guard</title>
+  <meta name="description" content="Before an AI agent pays another agent, check that a verified human stands behind it. A trust scan of the Concordium CIS-8004 agent registry.">
+  <style>
+    :root { --bg:#f5f7f6; --s:#fff; --s2:#eef2f0; --ink:#14201b; --mut:#5a6b63; --line:#dbe3df; --brand:#0b6e4f; --ok:#15803d; --okb:#e2f4e8; --bad:#b42318; --badb:#fbe8e6; --rev:#a15c07; --revb:#fcf0db; color-scheme:light; }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0d1512; --s:#14201b; --s2:#1a2a23; --ink:#e5eee9; --mut:#93a79d; --line:#25372f; --brand:#34d399; --ok:#4ade80; --okb:#12301f; --bad:#f87171; --badb:#3a1714; --rev:#fbbf24; --revb:#352a10; color-scheme:dark; } }
+    :root[data-theme="dark"] { --bg:#0d1512; --s:#14201b; --s2:#1a2a23; --ink:#e5eee9; --mut:#93a79d; --line:#25372f; --brand:#34d399; color-scheme:dark; }
+    * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+    .wrap { max-width:1060px; margin:0 auto; padding:0 16px; } a { color:var(--brand); }
+    header { background:var(--s); border-bottom:1px solid var(--line); } header .wrap { padding-block:14px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center; }
+    h1 { font-size:clamp(1.4rem,3.5vw,2rem); margin:.2rem 0 .4rem; letter-spacing:-.02em; } .mut { color:var(--mut); } .small { font-size:.85rem; }
+    section { margin:20px 0; } .card { background:var(--s); border:1px solid var(--line); border-radius:14px; padding:18px; }
+    .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; } .kpi { background:var(--s2); border-radius:12px; padding:12px; } .kpi b { display:block; font-size:1.5rem; font-variant-numeric:tabular-nums; } .kpi span { font-size:.8rem; color:var(--mut); }
+    .bar { display:flex; height:14px; border-radius:99px; overflow:hidden; margin:10px 0 4px; background:var(--s2); } .bar i { display:block; height:100%; }
+    .pill { display:inline-block; border-radius:99px; padding:1px 9px; font-size:.76rem; font-weight:600; } .ALLOW { background:var(--okb); color:var(--ok); } .BLOCK { background:var(--badb); color:var(--bad); } .REVIEW { background:var(--revb); color:var(--rev); }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; } input, select { border:1px solid var(--line); border-radius:8px; padding:7px 9px; background:var(--s); color:var(--ink); font:inherit; }
+    .table-wrap { overflow-x:auto; } table { width:100%; border-collapse:collapse; font-size:.85rem; } th,td { text-align:left; padding:6px; border-top:1px solid var(--line); vertical-align:top; } th { color:var(--mut); } td.num { text-align:right; font-variant-numeric:tabular-nums; }
+    code { background:var(--s2); padding:1px 5px; border-radius:5px; font-size:.85em; } ol { padding-left:1.2rem; } li { margin:.25rem 0; }
+    .codes span { display:inline-block; background:var(--s2); border-radius:6px; padding:0 6px; margin:1px; font-size:.75rem; }
+  </style>
+</head>
+<body>
+  <header><div class="wrap"><strong>Counterparty Guard</strong><span class="mut small">Concordium Trusted Agents · CIS-8004 · x402</span></div></header>
+  <main class="wrap">
+    <section>
+      <h1>“Active” is not “trusted”.</h1>
+      <p class="mut">Before an AI agent pays another agent, Counterparty Guard checks the payee on the Concordium CIS-8004 Agent Registry. It verifies the agent is Active, that its Agent Card still matches the on-chain SHA-256 anchor, that a valid Concordium Badge proves an identity-verified owner is accountable, that the x402 <code>payTo</code> is the wallet the agent declared, and that the payment fits per-agent and daily budgets. Below: a full scan of the testnet registry.</p>
+    </section>
+    <section class="card">
+      <div class="mut small" id="meta">Loading scan…</div>
+      <div class="kpis" id="kpis" style="margin-top:10px"></div>
+      <div class="bar" id="bar" aria-hidden="true"></div>
+      <div class="mut small" id="legend"></div>
+    </section>
+    <section class="card">
+      <h2 style="margin-top:0;font-size:1.05rem">Why agents fail</h2>
+      <div id="why"></div>
+    </section>
+    <section class="card">
+      <h2 style="margin-top:0;font-size:1.05rem">Every agent on testnet</h2>
+      <div class="controls">
+        <input id="q" placeholder="Search token id, owner or URI" aria-label="Search">
+        <select id="f" aria-label="Filter"><option value="">All verdicts</option><option>ALLOW</option><option>REVIEW</option><option>BLOCK</option><option value="active">Active only</option></select>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Token</th><th>Verdict</th><th class="num">Score</th><th>Failed checks</th><th>Owner</th><th>Card URI</th></tr></thead><tbody id="rows"></tbody></table></div>
+      <p class="mut small" id="count"></p>
+    </section>
+    <section class="card">
+      <h2 style="margin-top:0;font-size:1.05rem">How the guard decides</h2>
+      <ol>
+        <li><b>Registered &amp; Active</b>: <code>check_badge</code> on the CIS-8004 contract (testnet <code>&lt;12802,0&gt;</code>).</li>
+        <li><b>Card integrity</b>: the Agent Card at <code>agent_uri</code> must hash to the on-chain <code>metadata_hash</code>.</li>
+        <li><b>Accountable owner</b>: a valid Concordium Badge, which is backed by Concordium's protocol-level identity.</li>
+        <li><b>Payment routing</b>: the x402 <code>payTo</code> must equal <code>get_agent_wallet</code>.</li>
+        <li><b>Budgets</b>: per-payment, per-counterparty per day and global per day caps in CCD.</li>
+        <li><b>History</b>: new agents, past revocations and NFT transfers go to REVIEW.</li>
+      </ol>
+      <p class="small mut">Source: <a href="https://github.com/emilpz320-a11y/counterparty-guard">github.com/emilpz320-a11y/counterparty-guard</a> · data read through the public Agent Registry MCP server.</p>
+    </section>
+  </main>
+  <script type="module">
+    const $ = (s) => document.querySelector(s);
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const LABEL = { not_registered: 'Not found on registry', not_active: 'Not Active (revoked/burned)', no_card: 'No card URI', card_unreachable: 'Card unreachable', card_tampered: 'Card hash mismatch', no_badge: 'No valid badge', new_agent: 'Registered < 1 h ago', revoked_before: 'Has a past revocation', ownership_changed: 'NFT ownership changed' };
+    const d = await fetch('data/scan.json').then((r) => r.json());
+    const s = d.summary;
+    $('#meta').textContent = `Scan of ${s.scanned} agents on ${d.network} (CIS-8004 <${d.contract.index},${d.contract.subindex}>) · ${new Date(d.scannedAt).toUTCString()}`;
+    const k = [[s.scanned, 'agents registered'], [s.active, `Active (${s.activePct}%)`], [s.activeButUntrusted, 'Active but fail a check'], [s.badgeValid, `valid badge (${s.badgeValidPct}%)`], [s.allow, `ALLOW to pay (${s.allowPct}%)`]];
+    $('#kpis').innerHTML = k.map(([v, l]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('');
+    const act = s.active || 1;
+    $('#bar').innerHTML = `<i style="width:${(s.allow / act) * 100}%;background:var(--ok)"></i><i style="width:${(s.activeButUntrusted / act) * 100}%;background:var(--bad)"></i>`;
+    $('#legend').textContent = `Of ${s.active} Active agents: ${s.allow} pass every check, ${s.activeButUntrusted} (${Math.round((s.activeButUntrusted / act) * 100)}%) would be blocked or sent to review.`;
+    const cnt = {};
+    for (const r of d.rows.filter((x) => x.checks?.status_active)) for (const c of r.reasons) cnt[c] = (cnt[c] || 0) + 1;
+    $('#why').innerHTML = `<p class="mut small">Among Active agents:</p>` + Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([c, n]) => `<div style="display:flex;gap:10px;align-items:center;margin:4px 0"><span style="width:200px" class="small">${esc(LABEL[c] || c)}</span><div class="bar" style="flex:1;margin:0"><i style="width:${(n / act) * 100}%;background:var(--rev)"></i></div><span class="small" style="width:40px;text-align:right">${n}</span></div>`).join('');
+    function render() {
+      const q = $('#q').value.trim().toLowerCase(); const f = $('#f').value;
+      const list = d.rows.filter((r) => (!f || (f === 'active' ? r.checks?.status_active : r.verdict === f)) && (!q || `${r.tokenId} ${r.owner} ${r.agentUri}`.toLowerCase().includes(q))).sort((a, b) => b.score - a.score || b.tokenId - a.tokenId);
+      $('#rows').innerHTML = list.slice(0, 200).map((r) => `<tr><td>${r.tokenId}</td><td><span class="pill ${r.verdict}">${r.verdict}</span></td><td class="num">${r.score}</td><td class="codes">${r.reasons.map((c) => `<span>${esc(LABEL[c] || c)}</span>`).join('') || '—'}</td><td class="small">${esc((r.owner || '').slice(0, 10))}…</td><td class="small" style="max-width:280px;word-break:break-all">${esc(r.agentUri || '')}</td></tr>`).join('');
+      $('#count').textContent = `${list.length} match${list.length === 1 ? '' : 'es'}${list.length > 200 ? ' (showing 200)' : ''}`;
+    }
+    $('#q').addEventListener('input', render); $('#f').addEventListener('change', render); render();
+  </script>
+</body>
+</html>
