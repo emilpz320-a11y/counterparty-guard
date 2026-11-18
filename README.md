@@ -79,7 +79,9 @@ if (verdict !== 'ALLOW') {
 - `src/guard.mjs`: CLI (`check`, `scan`)
 - `src/payguard.mjs`: maps x402 payment requirements to the payee agent and decides
 - `src/x402guard.mjs`: hook into the x402 client and a guarded `fetch`
-- `examples/demo.mjs`: end-to-end demo
+- `examples/demo.mjs`: end-to-end demo (dry run)
+- `examples/live.mjs`: real x402 payment on testnet with in-process facilitator
+- `src/chain.mjs`, `scripts/register-agent.mjs`: sign and submit Agent Registry payloads
 - `docs/`: static dashboard (GitHub Pages)
 
 ## x402: pay only verified agents
@@ -120,9 +122,36 @@ The payee's agent id comes from `requirements.extra.agentId` (sellers advertise 
 
 Without credentials it is a dry run (nothing is signed). With `CCD_ACCOUNT=<address> CCD_KEY_FILE=<file with the ed25519 key>` it uses the real `ExactConcordiumScheme` signer. The local sellers do not settle on chain.
 
+## Live on testnet
+
+Our own seller agent is registered on the CIS-8004 registry and passes every check:
+
+- Agent **#1254**, card at [`docs/agents/seller.json`](docs/agents/seller.json), Verified by Concordium badge valid, payment wallet declared on chain.
+- Register: [tx](https://testnet.ccdscan.io/?dcount=1&dentity=transaction&dhash=2b2b2c9c647f68706441b41cb0404aea2e293ec317a8256bbf4b74df631ee29a) · setAgentWallet: [tx](https://testnet.ccdscan.io/?dcount=1&dentity=transaction&dhash=d44128066101373ff03fbedf257483c066f40479c330382307fdfe1d866abc70) · setAgentURI: [tx](https://testnet.ccdscan.io/?dcount=1&dentity=transaction&dhash=cb893d8f3e33204bb6f138b0453e54e62f1102721df1af65253477d4e555d311)
+
+`examples/live.mjs` runs the whole x402 flow on testnet in one process: an in-process facilitator (the seller's account sponsors the fee), a resource server with two routes, and the guarded buyer.
+
+```
+/report
+  guard: ALLOW · agent #1254 · 2 CCD
+  -> HTTP 200, settled on-chain
+/tampered          (same offer, payTo swapped)
+  guard: BLOCK (wallet_mismatch) · agent #1254 · 2 CCD
+  -> refused before signing
+```
+
+Settled payment (2 CCD, sponsored transfer, finalized): [0082eacf…a3a6](https://testnet.ccdscan.io/?dcount=1&dentity=transaction&dhash=0082eacf529c18d0e940eb2679bf69774c3936f2b548e326a185c1b72b2ca3a6)
+
+```bash
+BUYER_KEY_FILE=<buyer .export> SELLER_KEY_FILE=<seller .export> node examples/live.mjs
+CCD_KEY_FILE=<owner .export> node scripts/register-agent.mjs register|card|uri|wallet|status [name]
+```
+
+Key files are the JSON exports from Concordium Wallet for Web; `src/keyfile.mjs` loads them and keys are never printed.
+
 ## Roadmap
 
-1. Register our own buyer and seller agents on CIS-8004 with a Badge, and settle a guarded payment on testnet through a Concordium facilitator.
+1. Register the buyer as an agent too, and let sellers check buyers (mutual verification).
 2. Optional REVIEW flow: ask a human before paying a new or recently transferred agent instead of refusing.
 
 ## License

@@ -4,8 +4,19 @@
     {
       "label": "register",
       "hash": "2b2b2c9c647f68706441b41cb0404aea2e293ec317a8256bbf4b74df631ee29a"
+    },
+    {
+      "label": "setAgentWallet",
+      "hash": "d44128066101373ff03fbedf257483c066f40479c330382307fdfe1d866abc70"
+    },
+    {
+      "label": "setAgentURI",
+      "hash": "cb893d8f3e33204bb6f138b0453e54e62f1102721df1af65253477d4e555d311"
     }
   ],
   "tokenId": 1254,
-  "owner": "4BqjC6XzDDqmsgBVqmo5zZKmCfFQvhuH5Fy4XPYDNftkcDQyPD"
+  "owner": "4BqjC6XzDDqmsgBVqmo5zZKmCfFQvhuH5Fy4XPYDNftkcDQyPD",
+  "agentWallet": "4BqjC6XzDDqmsgBVqmo5zZKmCfFQvhuH5Fy4XPYDNftkcDQyPD",
+  "agentUri": "https://emilpz320-a11y.github.io/counterparty-guard/agents/seller.json",
+  "cardHash": "346e9784ecc288d8864f39ca7cbe545b2a12f716cd307fce8b72415dc54b5285"
 }
