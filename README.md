@@ -4,6 +4,7 @@
 
 Built for the Concordium **Trusted Agents** hackathon (Encode Club).
 
+- Demo video: https://youtu.be/u1ViCRawwLI
 - Live dashboard (full testnet scan): https://emilpz320-a11y.github.io/counterparty-guard/
 - Data: [`docs/data/scan.json`](docs/data/scan.json)
 
