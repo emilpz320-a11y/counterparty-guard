@@ -5,3 +5,5 @@ node_modules/
 *.key
 keys/
 concordium-keys/
+media/video-work/
+media/*.mp4
