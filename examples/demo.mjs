@@ -3,13 +3,12 @@
 // Counterparty facts come LIVE from the Concordium testnet CIS-8004 registry (read-only MCP).
 //
 //   node examples/demo.mjs                 dry run: payments are not signed (placeholder payload)
-//   CCD_ACCOUNT=<base58> CCD_KEY_FILE=<file with ed25519 hex key> node examples/demo.mjs
+//   CCD_KEY_FILE=<wallet export .json> node examples/demo.mjs   (or raw hex key + CCD_ACCOUNT=<base58>)
 //                                          real signer: ExactConcordiumScheme signs on testnet
 //
 // The local sellers do not settle on-chain (no facilitator); the point is which requests the
 // guard lets the buyer sign at all.
 import http from 'node:http';
-import { readFileSync } from 'node:fs';
 import { createRegistryClient } from '../src/mcp.mjs';
 import { createPayGuard } from '../src/payguard.mjs';
 import { createGuardedFetch, CONCORDIUM_TESTNET } from '../src/x402guard.mjs';
@@ -53,11 +52,12 @@ await new Promise((r) => server.listen(0, r));
 const base = `http://localhost:${server.address().port}`;
 
 async function makeScheme() {
-  if (process.env.CCD_ACCOUNT && process.env.CCD_KEY_FILE) {
+  if (process.env.CCD_KEY_FILE) {
     const { ExactConcordiumScheme } = await import('@x402/concordium/exact/client');
-    const { AccountAddress, buildBasicAccountSigner } = await import('@concordium/web-sdk');
-    const key = readFileSync(process.env.CCD_KEY_FILE, 'utf8').trim(); // never printed
-    return { mode: 'real signer', scheme: new ExactConcordiumScheme({ accountAddress: AccountAddress.fromBase58(process.env.CCD_ACCOUNT), signer: buildBasicAccountSigner(key) }) };
+    const { loadAccount } = await import('../src/keyfile.mjs');
+    const acct = loadAccount(process.env.CCD_KEY_FILE, process.env.CCD_ACCOUNT); // key is never printed
+    console.log(`Buyer account: ${acct.address}`);
+    return { mode: 'real signer', scheme: new ExactConcordiumScheme({ accountAddress: acct.accountAddress, signer: acct.signer }) };
   }
   return { mode: 'dry run (no signing)', scheme: { scheme: 'exact', createPaymentPayload: async (v) => ({ x402Version: v, payload: { dryRun: true } }) } };
 }
